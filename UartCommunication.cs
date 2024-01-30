@@ -1,6 +1,7 @@
 using System;
 using System.IO.Ports;
 using System.Text.RegularExpressions;
+using System.Threading; // Import the Thread namespace
 
 namespace UartCommunication
 {
@@ -8,11 +9,13 @@ namespace UartCommunication
     {
         private SerialPort _serialPort;
 
+        // Constructor to initialize the SerialPort with specified parameters
         public UartCommunication(string portName, int baudRate)
         {
             _serialPort = new SerialPort(portName, baudRate);
         }
 
+        // Method to open the serial port
         public void Open()
         {
             try
@@ -25,11 +28,13 @@ namespace UartCommunication
             }
         }
 
+        // Method to close the serial port
         public void Close()
         {
             _serialPort.Close();
         }
 
+        // Method to send a message through the serial port
         public void SendMessage(string message)
         {
             if (_serialPort.IsOpen)
@@ -38,78 +43,27 @@ namespace UartCommunication
             }
         }
 
+        // Method to start reading data from the serial port in a separate thread
         public void StartReading()
         {
             Thread readThread = new Thread(SerialPortDataReceived);
             readThread.Start();
         }
 
-        public void SerialPortDataReceived(object sender)
+        // Method that runs in a separate thread to handle data received from the serial port
+        private void SerialPortDataReceived()
         {
-            while (true)
+            while (_serialPort.IsOpen)
             {
-                string receivedData = string.Empty;
-
-                while (_serialPort.BytesToRead > 0)
-                {
-                    receivedData += _serialPort.ReadExisting();
-                }
+                string receivedData = _serialPort.ReadExisting();
 
                 if (!string.IsNullOrEmpty(receivedData))
                 {
                     Console.WriteLine(receivedData);
-                    ChecarIP(receivedData);
                 }
+
+                Thread.Sleep(100); // Introduce a small delay to avoid busy waiting
             }
-        }
-
-        public void ChecarIP(string message)
-        {
-            if (IsUdprtMessage(message))
-            {
-                string ipAddress = ExtractIpAddressFromMessage(message);
-                if (!string.IsNullOrEmpty(ipAddress))
-                {
-                    if (ValidateIPMessage(message))
-                    {
-                        string udpstMessage = $"udpst {ipAddress} 20171 \"yes!\"";
-                        SendMessage(udpstMessage);
-                    }
-                    else
-                    {
-                        
-                    }
-                }
-            }
-        }
-
-        static bool IsUdprtMessage(string message)
-        {
-            return message.Trim().StartsWith("udprt", StringComparison.OrdinalIgnoreCase);
-        }
-
-        static bool ValidateIPMessage(string message)
-        {
-            int startIndex = message.IndexOf("udprt <");
-            int endIndex = message.IndexOf("> \"isb?\"");
-
-            // Verifica se a mensagem contém "udprt <", "> \"isb?\"" e se os índices estão na ordem correta
-            return startIndex != -1 && endIndex != -1 && startIndex < endIndex;
-        }
-
-
-        private string ExtractIpAddressFromMessage(string message)
-        {
-            string pattern = @"<([^>]*)>";
-            Regex regex = new Regex(pattern);
-            Match match = regex.Match(message);
-
-            if (match.Success)
-            {
-                return match.Groups[1].Value;
-            }
-
-            return string.Empty;
         }
     }
 }
